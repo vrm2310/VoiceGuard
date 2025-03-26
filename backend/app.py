@@ -9,11 +9,11 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/api/data', methods=['GET'])
+@app.route('/api/data', methods=['GET'])   ##set up this as path for get req http://127.0.0.1:5000/api/data
 def get_data():
     return jsonify({"message": "Hello from Flask!"})
 
-@app.route('/api/feedback', methods=['POST'])
+@app.route('/api/feedback', methods=['POST'])  #set up this as path for post req http://127.0.0.1:5000/api/feedback
 def receive_feedback():
     feedback = request.json.get('feedback', '')
     return jsonify({"message": "Feedback received", "feedback": feedback})
