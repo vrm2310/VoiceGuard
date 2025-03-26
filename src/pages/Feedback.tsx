@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FiSend, FiMessageSquare, FiThumbsUp, FiThumbsDown } from 'react-icons/fi';
+import axios from 'axios';
+import React from 'react';
 
 const Feedback = () => {
     const [feedbackType, setFeedbackType] = useState<'general' | 'bug' | 'suggestion'>('general');
