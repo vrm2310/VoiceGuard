@@ -6,46 +6,24 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
-import threading
 import json
-import wave
-import sounddevice as sd
+
 import smtplib
 from email.message import EmailMessage
-import numpy as np
 # from deepfake_detector import analyze_audio  # Your deepfake detection logic
 # from audio_recorder import record_audio  # Function to record audio
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:5174"}})
+CORS(app)
 
 UPLOAD_FOLDER = "uploads"
 REPORTS_FOLDER = "reports"
 
+REPORTS_FOLDER = "reports"  #downloaded reports will be stored here
 REPORT_FILE = os.path.join(REPORTS_FOLDER, "live_recording.json")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(REPORTS_FOLDER, exist_ok=True)
-
-recording = []
-recording_active = False
-samplerate = 44100
-channels = 1
-stream = None
-
-def callback(indata, frames, time, status):
-    """ Callback function to continuously capture audio """
-    global recording
-    if recording_active:
-        recording.append(indata.copy())
-
-# Apply CORS headers to every response
-@app.after_request
-def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "http://localhost:5174"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    return response
 
 @app.route('/api/data', methods=['GET'])   ##set up this as path for get req http://127.0.0.1:5000/api/data
 def get_data():
@@ -62,10 +40,6 @@ def receive_feedback():
 
     return jsonify({"message": "Feedback received successfully"}), 200
 
-# 4. Dummy function to analyze audio
-def analyze_audio(filepath):
-    return {"status": "success", "message": "Audio analyzed successfully!", "file": filepath}
-
 # 1. Endpoint to analyze an uploaded audio file
 @app.route('/analyze-audio', methods=['POST'])
 def analyze_audio_file():
@@ -76,68 +50,26 @@ def analyze_audio_file():
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
 
-    results = analyze_audio(filepath)  # Your deepfake detection function
+    # results = analyze_audio(filepath)  # Your deepfake detection function
 
     # Save results as a report
-    report_path = os.path.join(REPORTS_FOLDER, f"{file.filename}.json")
-    with open(report_path, "w") as f:
-        f.write(json.dumps(results))
+    # report_path = os.path.join(REPORTS_FOLDER, f"{file.filename}.json")
+    # with open(report_path, "w") as f:
+    #     f.write(json.dumps(results))
 
-    return jsonify(results)
+    # return jsonify(results)
 
 # 2. Endpoint to record and analyze live audio
-@app.route('/record-audio', methods=['POST'])
-def start_recording():
-    """ Start recording indefinitely """
-    global recording, recording_active, stream
-    if recording_active:
-        return jsonify({"message": "Recording already in progress"}), 400
+# @app.route('/record-audio', methods=['POST'])
+# def record_audio_file():
+    # audio_path = record_audio()  # Your function to capture audio from the microphone
 
-    recording = []  # Clear previous recording
-    recording_active = True
+    # results = analyze_audio(audio_path)
+    # report_path = os.path.join(REPORTS_FOLDER, "live_recording.json")
+    # with open(report_path, "w") as f:
+    #     f.write(json.dumps(results))
 
-    stream = sd.InputStream(callback=callback, channels=channels, samplerate=samplerate)
-    stream.start()
-
-    print("Recording started...")
-    return jsonify({"message": "Recording started"}), 200
-
-@app.route('/stop-recording', methods=['POST'])
-def stop_recording():
-    """ Stop recording and save the file """
-    global recording_active, stream
-    if not recording_active:
-        return jsonify({"message": "No recording in progress"}), 400
-
-    recording_active = False
-    stream.stop()
-    stream.close()
-
-    if not recording:
-        return jsonify({"message": "No audio recorded"}), 400
-
-    # Convert recorded audio to NumPy array
-    audio_data = np.concatenate(recording, axis=0)
-    filepath = os.path.join(UPLOAD_FOLDER, "recorded_audio.wav")
-
-    # Save the recorded audio
-    with wave.open(filepath, 'wb') as wf:
-        wf.setnchannels(channels)
-        wf.setsampwidth(2)  # 16-bit audio
-        wf.setframerate(samplerate)
-        wf.writeframes(audio_data.astype(np.int16).tobytes())
-
-    print(f"Recording saved: {filepath}")
-    return jsonify({"message": "Recording stopped", "file_path": filepath}), 200
-
-# 7. Handle CORS preflight requests
-@app.route('/record-audio', methods=['OPTIONS'])
-def preflight():
-    response = jsonify({"message": "CORS preflight successful"})
-    response.headers.add("Access-Control-Allow-Origin", "http://localhost:5174")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
-    return response
+    # return jsonify(results)
 
 # 3. Endpoint to download analysis reports
 @app.route('/download-report', methods=['GET'])
