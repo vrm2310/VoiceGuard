@@ -7,23 +7,32 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
 import json
-
+import wave
+import sounddevice as sd
 import smtplib
 from email.message import EmailMessage
 # from deepfake_detector import analyze_audio  # Your deepfake detection logic
-# from audio_recorder import record_audio  # Function to record audio
+from audio_recorder import record_audio  # Function to record audio
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "http://localhost:5174"}})
 
 UPLOAD_FOLDER = "uploads"
 REPORTS_FOLDER = "reports"
 
-REPORTS_FOLDER = "reports"  #downloaded reports will be stored here
 REPORT_FILE = os.path.join(REPORTS_FOLDER, "live_recording.json")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(REPORTS_FOLDER, exist_ok=True)
+
+
+# Apply CORS headers to every response
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "http://localhost:5174"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return response
 
 @app.route('/api/data', methods=['GET'])   ##set up this as path for get req http://127.0.0.1:5000/api/data
 def get_data():
@@ -40,6 +49,26 @@ def receive_feedback():
 
     return jsonify({"message": "Feedback received successfully"}), 200
 
+# 3. Function to record audio
+def record_audio(filename="live_recording.wav", duration=5, samplerate=44100):
+    print("Recording...")
+    audio = sd.rec(int(samplerate * duration), samplerate=samplerate, channels=2, dtype='int16')
+    sd.wait()
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    
+    with wave.open(filepath, 'wb') as wf:
+        wf.setnchannels(2)
+        wf.setsampwidth(2)
+        wf.setframerate(samplerate)
+        wf.writeframes(audio.tobytes())
+
+    print("Recording saved:", filepath)
+    return filepath
+
+# 4. Dummy function to analyze audio
+def analyze_audio(filepath):
+    return {"status": "success", "message": "Audio analyzed successfully!", "file": filepath}
+
 # 1. Endpoint to analyze an uploaded audio file
 @app.route('/analyze-audio', methods=['POST'])
 def analyze_audio_file():
@@ -50,26 +79,35 @@ def analyze_audio_file():
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
 
-    # results = analyze_audio(filepath)  # Your deepfake detection function
+    results = analyze_audio(filepath)  # Your deepfake detection function
 
     # Save results as a report
-    # report_path = os.path.join(REPORTS_FOLDER, f"{file.filename}.json")
-    # with open(report_path, "w") as f:
-    #     f.write(json.dumps(results))
+    report_path = os.path.join(REPORTS_FOLDER, f"{file.filename}.json")
+    with open(report_path, "w") as f:
+        f.write(json.dumps(results))
 
-    # return jsonify(results)
+    return jsonify(results)
 
 # 2. Endpoint to record and analyze live audio
-# @app.route('/record-audio', methods=['POST'])
-# def record_audio_file():
-    # audio_path = record_audio()  # Your function to capture audio from the microphone
+@app.route('/record-audio', methods=['POST'])
+def record_audio_file():
+    audio_path = record_audio()  # Your function to capture audio from the microphone
+    results = analyze_audio(audio_path)
 
-    # results = analyze_audio(audio_path)
-    # report_path = os.path.join(REPORTS_FOLDER, "live_recording.json")
-    # with open(report_path, "w") as f:
-    #     f.write(json.dumps(results))
+    report_path = os.path.join(REPORTS_FOLDER, "live_recording.json")
+    with open(report_path, "w") as f:
+        f.write(json.dumps(results))
 
-    # return jsonify(results)
+    return jsonify(results)
+
+# 7. Handle CORS preflight requests
+@app.route('/record-audio', methods=['OPTIONS'])
+def preflight():
+    response = jsonify({"message": "CORS preflight successful"})
+    response.headers.add("Access-Control-Allow-Origin", "http://localhost:5174")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+    return response
 
 # 3. Endpoint to download analysis reports
 @app.route('/download-report', methods=['GET'])
