@@ -140,10 +140,32 @@ const Detection = () => {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
-  } catch (error) {
+    } catch (error) {
     console.error("Error downloading report:", error);
+      }
+  };
+
+  const shareReport = async (method: "email" | "whatsapp") => {
+  if (!results) return;
+
+  const recipient = prompt(`Enter recipient ${method === "email" ? "email" : "WhatsApp number"}:`); 
+  if (!recipient) return;
+
+  try {
+    const response = await fetch(`http://localhost:5000/share-report`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ method, recipient }),
+    });
+
+    const data = await response.json();
+    alert(data.message);
+  } catch (error) {
+    console.error("Error sharing report:", error);
   }
-};  
+};
 
   return (
     <div className="container mx-auto px-4 pt-28 py-12">
@@ -317,16 +339,28 @@ const Detection = () => {
                 </p>
               </div>
             </div>
-
+            
+            {/* Download and Share Buttons */}
             <div className="mt-8 flex flex-wrap gap-4">
               <button 
               onClick={downloadReport}
               className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
                 <FiDownload className="mr-2" /> Download Full Report
               </button>
-              <button className="flex items-center px-6 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors">
-                Share Results
-              </button>
+
+              {/* Share via Email */}
+            <button 
+              onClick={() => shareReport("email")}
+              className="flex items-center px-6 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors">
+              Share via Email
+            </button>
+
+             {/* Share via WhatsApp */}
+            <button 
+              onClick={() => shareReport("whatsapp")}
+              className="flex items-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors">
+              📱 Share via WhatsApp
+            </button>
             </div>
           </motion.div>
         )}

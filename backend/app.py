@@ -7,6 +7,9 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
 import json
+
+import smtplib
+from email.message import EmailMessage
 # from deepfake_detector import analyze_audio  # Your deepfake detection logic
 # from audio_recorder import record_audio  # Function to record audio
 
@@ -84,6 +87,46 @@ def download_report():
         return jsonify({"error": "Report not found"}), 404
 
     return send_file(report_path, as_attachment=True, download_name=safe_filename)
+
+@app.route("/share-report", methods=["POST"])
+def share_report():
+    data = request.json
+    method = data.get("method")
+    recipient = data.get("recipient")
+    
+    if not method or not recipient:
+        return jsonify({"error": "Invalid request"}), 400
+    
+    report_path = "reports/analysis_report.pdf"  # Ensure report is saved here
+
+    if method == "email":
+        try:
+            email_sender = "your-email@gmail.com"
+            email_password = "your-email-password"
+
+            msg = EmailMessage()
+            msg["Subject"] = "Voice Analysis Report"
+            msg["From"] = email_sender
+            msg["To"] = recipient
+            msg.set_content("Attached is your requested voice analysis report.")
+
+            with open(report_path, "rb") as file:
+                msg.add_attachment(file.read(), maintype="application", subtype="pdf", filename="analysis_report.pdf")
+
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(email_sender, email_password)
+                server.send_message(msg)
+
+            return jsonify({"message": "Report shared via email successfully!"})
+
+        except Exception as e:
+            return jsonify({"error": f"Failed to send email: {str(e)}"}), 500
+
+    elif method == "whatsapp":
+        whatsapp_link = f"https://api.whatsapp.com/send?phone={recipient}&text=Your%20analysis%20report%20is%20ready!%20Download%20it%20here:%20http://localhost:5000/download-report"
+        return jsonify({"message": "WhatsApp link generated", "link": whatsapp_link})
+
+    return jsonify({"error": "Invalid method"}), 400
 
 if __name__ == '__main__':
     app.run(debug=True)
