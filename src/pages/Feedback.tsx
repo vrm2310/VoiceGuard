@@ -10,9 +10,22 @@ const Feedback = () => {
     const [submitted, setSubmitted] = useState(false);
     const [rating, setRating] = useState<number | null>(null);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         // Simulate submission
+        try {
+        const response = await axios.post('http://127.0.0.1:5000/api/feedback', {
+            feedbackType,
+            message,
+            rating
+        });
+
+        console.log(response.data); // Debugging
+        setSubmitted(true); // Show the success message
+
+        } catch (error) {
+        console.error("Error submitting feedback:", error);
+        }
         setTimeout(() => {
             setSubmitted(true);
         }, 1000);

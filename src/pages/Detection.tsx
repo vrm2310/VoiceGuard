@@ -36,12 +36,29 @@ const Detection = () => {
     }
   };
 
-  const analyzeFile = (file: File) => {
+  const analyzeFile = async (file: File) => {
     setIsAnalyzing(true);
     // Use the file for actual analysis
+    const formData = new FormData();
+    formData.append("file", file);
+
     console.log('Analyzing file:', file.name, file.type, file.size);
     
     // Simulate analysis
+    try {
+    const response = await fetch("http://localhost:5000/analyze-audio", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data: AnalysisResults = await response.json();
+    setResults(data);
+  } catch (error) {
+    console.error("Error analyzing file:", error);
+  } finally {
+    setIsAnalyzing(false);
+  }
+
     setTimeout(() => {
       setIsAnalyzing(false);
       setResults({
@@ -57,21 +74,76 @@ const Detection = () => {
     }, 3000);
   };
 
-  const startRecording = () => {
+  const startRecording = async () => {
     setIsRecording(true);
     // Simulate recording
-    setTimeout(() => {
-      setIsRecording(false);
-      const mockFile = new File([""], "recording.wav", { type: "audio/wav" });
-      setFile(mockFile);
-      analyzeFile(mockFile);
-    }, 2000);
+    // setTimeout(() => {
+    //   setIsRecording(false);
+    //   const mockFile = new File([""], "recording.wav", { type: "audio/wav" });
+    //   setFile(mockFile);
+    //   analyzeFile(mockFile);
+    // }, 2000);
+    try {
+    const response = await fetch("http://localhost:5000/record-audio", {
+      method: "POST",
+    });
+
+    if (!response.ok) throw new Error("Failed to start recording");
+
+    // Simulate recording delay
+    setTimeout(async () => {
+      try {
+        const stopResponse = await fetch("http://localhost:5000/stop-recording", {
+          method: "POST",
+        });
+
+        if (!stopResponse.ok) throw new Error("Failed to stop recording");
+
+        const audioBlob = await stopResponse.blob();
+        const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
+
+        setFile(audioFile);
+        analyzeFile(audioFile);
+      } catch (error) {
+        console.error("Error stopping recording:", error);
+      } finally {
+        setIsRecording(false);
+      }
+    }, 5000); // Simulated recording duration (5 sec)
+  } catch (error) {
+    console.error("Error starting recording:", error);
+    setIsRecording(false);
+  }
   };
 
   const resetAnalysis = () => {
     setFile(null);
     setResults(null);
   };
+
+  const downloadReport = async () => {
+  if (!results) return;
+
+  try {
+    const response = await fetch("http://localhost:5000/download-report", {
+      method: "GET",
+    });
+
+    if (!response.ok) throw new Error("Failed to download report");
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "analysis_report.pdf";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error("Error downloading report:", error);
+  }
+};  
 
   return (
     <div className="container mx-auto px-4 pt-28 py-12">
@@ -247,7 +319,9 @@ const Detection = () => {
             </div>
 
             <div className="mt-8 flex flex-wrap gap-4">
-              <button className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+              <button 
+              onClick={downloadReport}
+              className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
                 <FiDownload className="mr-2" /> Download Full Report
               </button>
               <button className="flex items-center px-6 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors">
