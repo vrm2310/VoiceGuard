@@ -6,13 +6,15 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
+import threading
 import json
 import wave
 import sounddevice as sd
 import smtplib
 from email.message import EmailMessage
+import numpy as np
 # from deepfake_detector import analyze_audio  # Your deepfake detection logic
-from audio_recorder import record_audio  # Function to record audio
+# from audio_recorder import record_audio  # Function to record audio
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:5174"}})
@@ -25,6 +27,17 @@ REPORT_FILE = os.path.join(REPORTS_FOLDER, "live_recording.json")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(REPORTS_FOLDER, exist_ok=True)
 
+recording = []
+recording_active = False
+samplerate = 44100
+channels = 1
+stream = None
+
+def callback(indata, frames, time, status):
+    """ Callback function to continuously capture audio """
+    global recording
+    if recording_active:
+        recording.append(indata.copy())
 
 # Apply CORS headers to every response
 @app.after_request
@@ -48,22 +61,6 @@ def receive_feedback():
     print(f"Received feedback: Type={feedback_type}, Message={message}, Rating={rating}")
 
     return jsonify({"message": "Feedback received successfully"}), 200
-
-# 3. Function to record audio
-def record_audio(filename="live_recording.wav", duration=5, samplerate=44100):
-    print("Recording...")
-    audio = sd.rec(int(samplerate * duration), samplerate=samplerate, channels=2, dtype='int16')
-    sd.wait()
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    
-    with wave.open(filepath, 'wb') as wf:
-        wf.setnchannels(2)
-        wf.setsampwidth(2)
-        wf.setframerate(samplerate)
-        wf.writeframes(audio.tobytes())
-
-    print("Recording saved:", filepath)
-    return filepath
 
 # 4. Dummy function to analyze audio
 def analyze_audio(filepath):
@@ -90,15 +87,48 @@ def analyze_audio_file():
 
 # 2. Endpoint to record and analyze live audio
 @app.route('/record-audio', methods=['POST'])
-def record_audio_file():
-    audio_path = record_audio()  # Your function to capture audio from the microphone
-    results = analyze_audio(audio_path)
+def start_recording():
+    """ Start recording indefinitely """
+    global recording, recording_active, stream
+    if recording_active:
+        return jsonify({"message": "Recording already in progress"}), 400
 
-    report_path = os.path.join(REPORTS_FOLDER, "live_recording.json")
-    with open(report_path, "w") as f:
-        f.write(json.dumps(results))
+    recording = []  # Clear previous recording
+    recording_active = True
 
-    return jsonify(results)
+    stream = sd.InputStream(callback=callback, channels=channels, samplerate=samplerate)
+    stream.start()
+
+    print("Recording started...")
+    return jsonify({"message": "Recording started"}), 200
+
+@app.route('/stop-recording', methods=['POST'])
+def stop_recording():
+    """ Stop recording and save the file """
+    global recording_active, stream
+    if not recording_active:
+        return jsonify({"message": "No recording in progress"}), 400
+
+    recording_active = False
+    stream.stop()
+    stream.close()
+
+    if not recording:
+        return jsonify({"message": "No audio recorded"}), 400
+
+    # Convert recorded audio to NumPy array
+    audio_data = np.concatenate(recording, axis=0)
+    filepath = os.path.join(UPLOAD_FOLDER, "recorded_audio.wav")
+
+    # Save the recorded audio
+    with wave.open(filepath, 'wb') as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(2)  # 16-bit audio
+        wf.setframerate(samplerate)
+        wf.writeframes(audio_data.astype(np.int16).tobytes())
+
+    print(f"Recording saved: {filepath}")
+    return jsonify({"message": "Recording stopped", "file_path": filepath}), 200
 
 # 7. Handle CORS preflight requests
 @app.route('/record-audio', methods=['OPTIONS'])

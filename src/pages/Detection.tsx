@@ -74,47 +74,78 @@ const Detection = () => {
     }, 3000);
   };
 
+  // const startRecording = async () => {
+  //   setIsRecording(true);
+  //   // Simulate recording
+  //   // setTimeout(() => {
+  //   //   setIsRecording(false);
+  //   //   const mockFile = new File([""], "recording.wav", { type: "audio/wav" });
+  //   //   setFile(mockFile);
+  //   //   analyzeFile(mockFile);
+  //   // }, 2000);
+  //   try {
+  //   const response = await fetch("http://localhost:5000/record-audio", {
+  //     method: "POST",
+  //   });
+
+  //   if (!response.ok) throw new Error("Failed to start recording");
+
+  //   // Simulate recording delay
+  //   setTimeout(async () => {
+  //     try {
+  //       const stopResponse = await fetch("http://localhost:5000/stop-recording", {
+  //         method: "POST",
+  //       });
+
+  //       if (!stopResponse.ok) throw new Error("Failed to stop recording");
+
+  //       const audioBlob = await stopResponse.blob();
+  //       const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
+
+  //       setFile(audioFile);
+  //       analyzeFile(audioFile);
+  //     } catch (error) {
+  //       console.error("Error stopping recording:", error);
+  //     } finally {
+  //       setIsRecording(false);
+  //     }
+  //   }, 5000); // Simulated recording duration (5 sec)
+  // } catch (error) {
+  //   console.error("Error starting recording:", error);
+  //   setIsRecording(false);
+  // }
+  // };
+
   const startRecording = async () => {
-    setIsRecording(true);
-    // Simulate recording
-    // setTimeout(() => {
-    //   setIsRecording(false);
-    //   const mockFile = new File([""], "recording.wav", { type: "audio/wav" });
-    //   setFile(mockFile);
-    //   analyzeFile(mockFile);
-    // }, 2000);
-    try {
+  setIsRecording(true);
+
+  try {
     const response = await fetch("http://localhost:5000/record-audio", {
       method: "POST",
     });
 
     if (!response.ok) throw new Error("Failed to start recording");
 
-    // Simulate recording delay
-    setTimeout(async () => {
-      try {
-        const stopResponse = await fetch("http://localhost:5000/stop-recording", {
-          method: "POST",
-        });
+    const result = await response.json(); // Process JSON response (if applicable)
 
-        if (!stopResponse.ok) throw new Error("Failed to stop recording");
+    // Assuming Flask returns an audio file path in "audio_path"
+    const audioFilePath = result.audio_path; // Adjust this based on actual response
 
-        const audioBlob = await stopResponse.blob();
-        const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
+    // Fetch the recorded audio file
+    const audioResponse = await fetch(`http://localhost:5000/${audioFilePath}`);
+    if (!audioResponse.ok) throw new Error("Failed to fetch recorded audio");
 
-        setFile(audioFile);
-        analyzeFile(audioFile);
-      } catch (error) {
-        console.error("Error stopping recording:", error);
-      } finally {
-        setIsRecording(false);
-      }
-    }, 5000); // Simulated recording duration (5 sec)
+    const audioBlob = await audioResponse.blob();
+    const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
+
+    setFile(audioFile);
+    analyzeFile(audioFile);
   } catch (error) {
-    console.error("Error starting recording:", error);
+    console.error("Error recording audio:", error);
+  } finally {
     setIsRecording(false);
   }
-  };
+};
 
   const resetAnalysis = () => {
     setFile(null);
